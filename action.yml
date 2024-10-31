@@ -1,0 +1,85 @@
+name: 'Run createrepo in container on SSHFS mounted repo'
+description: 'Run createrepo in container on SSHFS mounted repo'
+
+branding:
+  color:  green
+  icon: package
+
+inputs:
+  sftp_server:
+    description: 'SFTP server'
+    required: true
+  sftp_user:
+    description: 'SFTP user'
+    required: true
+  sftp_remote_path:
+    description: 'SFTP remote location of YUM repo'
+    required: true
+  sftp_server_key_type:
+    description: 'SSH key type of SFTP server'
+    required: true
+  sftp_server_key_fingerprint:
+    description: 'SSH key fingerprint of SFTP server'
+    required: true
+  distro:
+    description: 'Linux family'
+    default: 'almalinux'
+  distro_version:
+    description: 'Major version for Linux distro'
+    default: '9'
+  platform:
+    description: 'Hw playform to build the Docker image'
+    default: 'amd64'
+
+runs:
+  using: 'composite'
+
+  steps:
+    - name: Verify inputs
+      shell: bash
+      run: |
+        grep -qE '^(almalinux|fedora|rhel|centos|rockylinux)$' <<< "${{ inputs.distro }}"
+        if [ $? -ne 0 ]
+        then
+          echo '::error::Distribution must be one of almalinux,fedora,rhel,centos,rockylinux.'
+          exit 1
+        fi
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{github.action_path}}
+        push: false
+        tags: LHQG/${{ inputs.distro }}-${{ inputs.distro_version }}-${{ inputs.platform }}:latest
+        cache-from: type=gha
+        cache-to: type=gha
+        outputs: type=docker
+        platforms: ${{inputs.platform}}
+        build-args: |
+          DISTRIBUTION=${{inputs.distro}}
+          DISTRO_VERSN=${{inputs.distro_version}}
+          PLATFORM=${{inputs.platform}}
+
+    - name: Build RPM package in docker image
+      shell: bash
+      run: |
+        docker run --platform="${{inputs.platform}}" \
+          -v "/var/run/docker.sock":"/var/run/docker.sock" \
+          -v "${{github.workspace}}":/source \
+          --env INPUT_SFTP_SERVER \
+          --env INPUT_SFTP_USER \
+          --env INPUT_SFTP_REMOTE_PATH \
+          --env INPUT_SFTP_SERVER_KEY_TYPE \
+          --env INPUT_SFTP_SERVER_KEY_FINGERPRINT \
+          --workdir /source "${IMAGE_NAME}"
+      working-directory: ${{github.workspace}}
+      env:
+        INPUT_SFTP_SERVER: "${{inputs.sftp_server}}"
+        INPUT_SFTP_USER: "${{inputs.sftp_user}}"
+        INPUT_SFTP_REMOTE_PATH: "${{inputs.sftp_remote_path}}"
+        INPUT_SFTP_SERVER_KEY_TYPE: "${{inputs.sftp_server_key_type}}"
+        INPUT_SFTP_SERVER_KEY_FINGERPRINT: "${{inputs.sftp_server_key_fingerprint}}"
+        IMAGE_NAME: "LHQG/${{ inputs.distro }}-${{ inputs.distro_version }}-${{ inputs.platform }}:latest"
