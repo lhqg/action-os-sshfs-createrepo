@@ -12,6 +12,10 @@ inputs:
   sftp_user:
     description: 'SFTP user'
     required: true
+  sftp_password:
+    description: 'SFTP password'
+    required: false
+    default: ''
   sftp_remote_path:
     description: 'SFTP remote location of YUM repo'
     required: true
@@ -71,6 +75,7 @@ runs:
           -v "${{github.workspace}}":/source \
           --env INPUT_SFTP_SERVER \
           --env INPUT_SFTP_USER \
+          --env INPUT_SFTP_PASSWORD \
           --env INPUT_SFTP_REMOTE_PATH \
           --env INPUT_SFTP_SERVER_KEY_TYPE \
           --env INPUT_SFTP_SERVER_KEY_FINGERPRINT \
@@ -79,6 +84,7 @@ runs:
       env:
         INPUT_SFTP_SERVER: "${{inputs.sftp_server}}"
         INPUT_SFTP_USER: "${{inputs.sftp_user}}"
+        INPUT_SFTP_PASSWORD: "${{inputs.sftp_password}}"
         INPUT_SFTP_REMOTE_PATH: "${{inputs.sftp_remote_path}}"
         INPUT_SFTP_SERVER_KEY_TYPE: "${{inputs.sftp_server_key_type}}"
         INPUT_SFTP_SERVER_KEY_FINGERPRINT: "${{inputs.sftp_server_key_fingerprint}}"

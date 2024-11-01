@@ -26,6 +26,8 @@ touch $LOCKFILE
 
 pwd
 
+[ -n "${SFTP_PASSWORD}" ] && echo "${SFTP_PASSWORD}" > ${WORKDIR}/.sftp_password
+
 if [ -r ${WORKDIR}/.sftp_password ]
 then
   echo "::notice title=CreateRepodata::SFTP server      is ${SFTP_SERVER}"
