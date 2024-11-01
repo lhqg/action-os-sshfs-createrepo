@@ -67,15 +67,20 @@ runs:
           DISTRO_VERSN=${{inputs.distro_version}}
           PLATFORM=${{inputs.platform}}
 
-    - name: Build RPM package in docker image
+    - name: Run Docker image to build repodata
+      shell: bash
+      run: |
+        echo "${{inputs.sftp_password}}" > ${{github.workspace}}/.sftp_password
+    
+    - name: Run Docker image to build repodata
       shell: bash
       run: |
         docker run --platform="${{inputs.platform}}" \
+          --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
           -v "/var/run/docker.sock":"/var/run/docker.sock" \
           -v "${{github.workspace}}":/source \
           --env INPUT_SFTP_SERVER \
           --env INPUT_SFTP_USER \
-          --env INPUT_SFTP_PASSWORD \
           --env INPUT_SFTP_REMOTE_PATH \
           --env INPUT_SFTP_SERVER_KEY_TYPE \
           --env INPUT_SFTP_SERVER_KEY_FINGERPRINT \
@@ -84,7 +89,6 @@ runs:
       env:
         INPUT_SFTP_SERVER: "${{inputs.sftp_server}}"
         INPUT_SFTP_USER: "${{inputs.sftp_user}}"
-        INPUT_SFTP_PASSWORD: "${{inputs.sftp_password}}"
         INPUT_SFTP_REMOTE_PATH: "${{inputs.sftp_remote_path}}"
         INPUT_SFTP_SERVER_KEY_TYPE: "${{inputs.sftp_server_key_type}}"
         INPUT_SFTP_SERVER_KEY_FINGERPRINT: "${{inputs.sftp_server_key_fingerprint}}"
