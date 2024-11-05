@@ -134,19 +134,26 @@ then
 Origin: LHQG repository
 Label: LHQG
 Suite: stable
-Codename: ${distro_name}
 Version: 1.0
-Architectures: all amd64
 Components: main
+EOTEXT
+            cp Release ${distro_dir}/main/binary-all
+            echo 'Arcitecture: all' >> ${distro_dir}/main/binary-all
+            cp Release ${distro_dir}/main/binary-amd64
+            echo 'Arcitecture: amd64' >> ${distro_dir}/main/binary-amd64
+            cat >> Release << EOTEXT
+Architectures: all amd64
+Codename: ${distro_name}
 Description: LHQG repository
 Date: $(date -Ru)
 EOTEXT
+
             RC=$(( $RC + $? ))
-            do_hash "MD5sum" "md5sum" >> Release
+            do_hash "MD5Sum" "md5sum" >> Release
             RC=$(( $RC + $? ))
             do_hash "SHA1" "sha1sum" >> Release
             RC=$(( $RC + $? ))
-            do_hash "SHA256sum" "sha256sum" >> Release
+            do_hash "SHA256" "sha256sum" >> Release
             RC=$(( $RC + $? ))
 
             if [ $rc_gpg -eq 0 ]
