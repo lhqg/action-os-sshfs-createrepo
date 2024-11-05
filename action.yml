@@ -34,6 +34,14 @@ inputs:
   platform:
     description: 'Hw playform to build the Docker image'
     default: 'amd64'
+  gpg_private_key:
+    description: 'PGP private to sign the Release file'
+    required: false
+    default: ''
+  gpg_private_key_password:
+    description: 'Private key password'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -67,10 +75,12 @@ runs:
           DISTRO_VERSN=${{inputs.distro_version}}
           PLATFORM=${{inputs.platform}}
 
-    - name: Run Docker image to build repodata
+    - name: Provide Docker image with some material
       shell: bash
       run: |
         echo "${{inputs.sftp_password}}" > ${{github.workspace}}/.sftp_password
+        echo "${{inputs.gpg_private_key_password}}" > ${{github.workspace}}/.gpg_private_key_password
+        echo "${{inputs.gpg_private_key}}" | base64 -di > ${{github.workspace}}/gpg_private_key
     
     - name: Run Docker image to build repodata
       shell: bash

@@ -61,7 +61,9 @@ then
     echo "${INPUT_SFTP_SERVER} ${INPUT_SFTP_SERVER_KEY_TYPE} ${INPUT_SFTP_SERVER_KEY_FINGERPRINT}" >> ~/.ssh/known_hosts
     chmod 0600 ~/.ssh/known_hosts
 
-    # Mount the SFTP remote path
+	  #
+    ## Mount the SFTP remote path
+	  #
     REPO_DIR=${WORKDIR}/repo
     mkdir -m 0755 ${REPO_DIR}
 
@@ -71,6 +73,9 @@ then
 
     if [ $RC -eq 0 ]
     then
+      #
+      ## On RedHat and alikes
+      #
       if [ -x /usr/bin/createrepo ]
       then
         echo "::notice title=CreateRepodata::Running createrepo for ${INPUT_SFTP_REMOTE_PATH}"
@@ -78,8 +83,24 @@ then
         RC=$?
       fi
 
+      #
+      ## On Debian/Ubuntu
+      #
       if [ -x /usr/bin/dpkg-scanpackages ]
       then
+        # Import PGP private key
+        export GPG_TTY=$(tty)
+        export GNUPGHOME=${WORKDIR}/.gnupg
+        if [ -s ${WORKDIR}/.gpg_private_key_password -a -s ${WORKDIR}/gpg_private_key ]
+        then
+          [ -d ${GNUPGHOME} ] || mkdir -m 0700 -p ${GNUPGHOME}
+          gpg --batch \
+            --passphrase-file ${WORKDIR}/.gpg_private_key_password \
+            --import ${WORKDIR}/gpg_private_key 
+          rc_gpg=$?
+          [ $rc_gpg -eq 0 ] && echo "::notice title=CreateRepodata::PGP private key imported to temporary keyring"
+        fi
+
         ls -lR ${REPO_DIR}/
 
         if [ -d ${REPO_DIR}/dists -a -d ${REPO_DIR}/pool ]
@@ -122,6 +143,15 @@ EOTEXT
             RC=$(( $RC + $? ))
             do_hash "SHA256sum" "sha256sum" >> Release
             RC=$(( $RC + $? ))
+
+            if [ $rc_gpg -eq 0 ]
+            then
+              echo "::notice title=CreateRepodata::Signing the Release file"
+              gpg -abs > Release.gpg < Release
+              RC=$(( $RC + $? ))
+              gpg -abs --clearsign > InRelease < Release
+              RC=$(( $RC + $? ))
+            fi
           done
         else
           echo "::error title=CreateRepodata::No dists or no pool subdirectory found in ${INPUT_SFTP_REMOTE_PATH}"
