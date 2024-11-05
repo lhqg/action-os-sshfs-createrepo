@@ -78,9 +78,14 @@ then
       #
       if [ -x /usr/bin/createrepo ]
       then
+        ls -lR ${REPO_DIR}/
+
         echo "::notice title=CreateRepodata::Running createrepo for ${INPUT_SFTP_REMOTE_PATH}"
-        createrepo -v ${REPO_DIR}
-        RC=$?
+        for distro_dir in $( find ${REPO_DIR}/ -maxdepth 1 -mindepth 1 -type d )
+        do
+          createrepo -v ${distro_dir}
+          RC=$(( $RC + $? ))
+        done
       fi
 
       #
