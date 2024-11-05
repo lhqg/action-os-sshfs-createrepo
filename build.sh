@@ -62,7 +62,7 @@ then
     chmod 0600 ~/.ssh/known_hosts
 
     # Mount the SFTP remote path
-    REPO_DIR=${WORKDIR}/yumrepo
+    REPO_DIR=${WORKDIR}/repo
     mkdir -m 0755 ${REPO_DIR}
 
     echo "::notice title=CreateRepodata::Trying to perform mount on ${REPO_DIR}"
@@ -80,21 +80,28 @@ then
 
       if [ -x /usr/bin/dpkg-scanpackages ]
       then
-        if [ -d ${INPUT_SFTP_REMOTE_PATH}/dists -a ${INPUT_SFTP_REMOTE_PATH}/pool ]
+        ls -lR ${REPO_DIR}/
+
+        if [ -d ${REPO_DIR}/dists -a -d ${REPO_DIR}/pool ]
         then
           echo "::notice title=CreateRepodata::Running dpkg-scanpackages for ${INPUT_SFTP_REMOTE_PATH}"
-          for distro_dir in ( find ${INPUT_SFTP_REMOTE_PATH}/dists/ -type d -maxdepth 1 )
+          for distro_dir in $( find ${REPO_DIR}/dists/ -maxdepth 1 -mindepth 1 -type d )
           do
             distro_name=$( basename $distro_dir )
 
+            [ -d ${distro_dir}/main/binary-all ] || mkdir -m 0755 -p ${distro_dir}/main/binary-all
             [ -d ${distro_dir}/main/binary-amd64 ] || mkdir -m 0755 -p ${distro_dir}/main/binary-amd64
 
-            cd ${INPUT_SFTP_REMOTE_PATH}/
-            dpkg-scanpackages --arch amd64 pool/ > ${distro_dir}/main/binary-amd64/Packages
-            RC=$?
+            cd ${REPO_DIR}/
+            dpkg-scanpackages --arch all pool/${distro_name} > ${distro_dir}/main/binary-all/Packages
+            RC=$(( $RC + $? ))
+            dpkg-scanpackages --arch amd64 pool/${distro_name} > ${distro_dir}/main/binary-amd64/Packages
+            RC=$(( $RC + $? ))
 
+            gzip -9 < ${distro_dir}/main/binary-all/Packages > ${distro_dir}/main/binary-all/Packages.gz
+            RC=$(( $RC + $? ))
             gzip -9 < ${distro_dir}/main/binary-amd64/Packages > ${distro_dir}/main/binary-amd64/Packages.gz
-            RC=$?
+            RC=$(( $RC + $? ))
 
             cd ${distro_dir}
             cat > Release << EOTEXT
@@ -103,14 +110,18 @@ Label: LHQG
 Suite: stable
 Codename: ${distro_name}
 Version: 1.0
-Architectures: amd64
+Architectures: all amd64
 Components: main
 Description: LHQG repository
 Date: $(date -Ru)
 EOTEXT
-            do_hash "MD5sum" "md5sum"
-            do_hash "SHA1" "sha1sum"
-            do_hash "SHA256sum" "sha256sum"
+            RC=$(( $RC + $? ))
+            do_hash "MD5sum" "md5sum" >> Release
+            RC=$(( $RC + $? ))
+            do_hash "SHA1" "sha1sum" >> Release
+            RC=$(( $RC + $? ))
+            do_hash "SHA256sum" "sha256sum" >> Release
+            RC=$(( $RC + $? ))
           done
         else
           echo "::error title=CreateRepodata::No dists or no pool subdirectory found in ${INPUT_SFTP_REMOTE_PATH}"

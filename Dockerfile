@@ -15,8 +15,14 @@ ENV INPUT_SFTP_REMOTE_PATH=""
 # Install build environment
 ARG DEBIAN_FRONTEND=noninteractive
 RUN <<EORUN
- [ -x /usr/bin/apt-get ] && apt-get update && apt-get install sshfs dpkg-dev
- [ -x /usr/bin/dnf ] && dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${DISTRO_VERSN}.noarch.rpm && dnf install -y createrepo fuse fuse-sshfs
+ if [ -x /usr/bin/apt-get ]
+ then
+   apt-get update && apt-get -y install sshfs dpkg-dev
+ fi
+ if [ -x /usr/bin/dnf ]
+ then
+   dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${DISTRO_VERSN}.noarch.rpm && dnf install -y createrepo fuse fuse-sshfs
+ fi
 EORUN
 
 COPY ./build.sh .
