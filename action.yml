@@ -42,10 +42,10 @@ runs:
     - name: Verify inputs
       shell: bash
       run: |
-        grep -qE '^(almalinux|fedora|rhel|centos|rockylinux)$' <<< "${{ inputs.distro }}"
+        grep -qE '^(almalinux|fedora|rhel|centos|rockylinux|debian|ubuntu)$' <<< "${{ inputs.distro }}"
         if [ $? -ne 0 ]
         then
-          echo '::error::Distribution must be one of almalinux,fedora,rhel,centos,rockylinux.'
+          echo '::error::Distribution must be one of almalinux,fedora,rhel,centos,rockylinux,debian,ubuntu.'
           exit 1
         fi
 

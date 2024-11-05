@@ -1,5 +1,18 @@
 #! /bin/bash
 
+do_hash() {
+    HASH_NAME=$1
+    HASH_CMD=$2
+    echo "${HASH_NAME}:"
+    for f in $(find -type f); do
+        f=$(echo $f | cut -c3-) # remove ./ prefix
+        if [ "$f" = "Release" ]; then
+            continue
+        fi
+        echo " $(${HASH_CMD} ${f}  | cut -d" " -f1) $(wc -c $f)"
+    done
+}
+
 RC=0
 WORKDIR=/source
 
@@ -49,24 +62,67 @@ then
     chmod 0600 ~/.ssh/known_hosts
 
     # Mount the SFTP remote path
-    YUMREPO_DIR=${WORKDIR}/yumrepo
-    mkdir -m 0755 ${YUMREPO_DIR}
+    REPO_DIR=${WORKDIR}/yumrepo
+    mkdir -m 0755 ${REPO_DIR}
 
-    echo "::notice title=CreateRepodata::Trying to perform mount on ${YUMREPO_DIR}"
-    cat ${WORKDIR}/.sftp_password | sshfs -o password_stdin ${INPUT_SFTP_USER}@${INPUT_SFTP_SERVER}:${INPUT_SFTP_REMOTE_PATH} ${YUMREPO_DIR}
+    echo "::notice title=CreateRepodata::Trying to perform mount on ${REPO_DIR}"
+    cat ${WORKDIR}/.sftp_password | sshfs -o password_stdin ${INPUT_SFTP_USER}@${INPUT_SFTP_SERVER}:${INPUT_SFTP_REMOTE_PATH} ${REPO_DIR}
     RC=$?
 
     if [ $RC -eq 0 ]
     then
-      echo "::notice title=CreateRepodata::Running createrepo for ${INPUT_SFTP_REMOTE_PATH}"
-      createrepo -v ${YUMREPO_DIR}
-      RC=$?
+      if [ -x /usr/bin/createrepo ]
+      then
+        echo "::notice title=CreateRepodata::Running createrepo for ${INPUT_SFTP_REMOTE_PATH}"
+        createrepo -v ${REPO_DIR}
+        RC=$?
+      fi
+
+      if [ -x /usr/bin/dpkg-scanpackages ]
+      then
+        if [ -d ${INPUT_SFTP_REMOTE_PATH}/dists -a ${INPUT_SFTP_REMOTE_PATH}/pool ]
+        then
+          echo "::notice title=CreateRepodata::Running dpkg-scanpackages for ${INPUT_SFTP_REMOTE_PATH}"
+          for distro_dir in ( find ${INPUT_SFTP_REMOTE_PATH}/dists/ -type d -maxdepth 1 )
+          do
+            distro_name=$( basename $distro_dir )
+
+            [ -d ${distro_dir}/main/binary-amd64 ] || mkdir -m 0755 -p ${distro_dir}/main/binary-amd64
+
+            cd ${INPUT_SFTP_REMOTE_PATH}/
+            dpkg-scanpackages --arch amd64 pool/ > ${distro_dir}/main/binary-amd64/Packages
+            RC=$?
+
+            gzip -9 < ${distro_dir}/main/binary-amd64/Packages > ${distro_dir}/main/binary-amd64/Packages.gz
+            RC=$?
+
+            cd ${distro_dir}
+            cat > Release << EOTEXT
+Origin: LHQG repository
+Label: LHQG
+Suite: stable
+Codename: ${distro_name}
+Version: 1.0
+Architectures: amd64
+Components: main
+Description: LHQG repository
+Date: $(date -Ru)
+EOTEXT
+            do_hash "MD5sum" "md5sum"
+            do_hash "SHA1" "sha1sum"
+            do_hash "SHA256sum" "sha256sum"
+          done
+        else
+          echo "::error title=CreateRepodata::No dists or no pool subdirectory found in ${INPUT_SFTP_REMOTE_PATH}"
+          RC=1
+        fi
+      fi
     else
       echo "::error title=CreateRepodata::Unable to perform SSHFS mount"
     fi
 
     cd ${WORKDIR}
-    fusermount -u ${YUMREPO_DIR} > /dev/null 2>&1
+    fusermount -u ${REPO_DIR} > /dev/null 2>&1
   else
     echo "::error title=CreateRepodata::No SSH key type or fingerprint."
   fi
